@@ -9,7 +9,7 @@ import { X, Camera, User, Hash, Users, Loader2, RefreshCw, Calendar, Star, Shiel
 
 import { z } from "zod";
 import { normalizeName, compareNames, compareStrings } from "@/lib/nameUtils";
-import LivenessVerification from "./LivenessVerification";
+
 
 const attendanceSchema = z.object({
   name: z.string().min(2, "Tên phải có ít nhất 2 ký tự").max(100, "Tên quá dài"),
@@ -90,10 +90,7 @@ const AttendanceForm = ({ classInfo, onClose, onSuccess }: AttendanceFormProps) 
   const [hasBonusPoints, setHasBonusPoints] = useState(false);
   const [bonusPoints, setBonusPoints] = useState("");
 
-  // Advanced verification
-  const [showLivenessVerification, setShowLivenessVerification] = useState(false);
-  const [isLivenessVerified, setIsLivenessVerified] = useState(false);
-  const requiresVerification = classInfo.advanced_verification === true;
+
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -592,17 +589,7 @@ const AttendanceForm = ({ classInfo, onClose, onSuccess }: AttendanceFormProps) 
                         <RefreshCw className="w-4 h-4 mr-2" />
                         Chụp lại
                       </Button>
-                      {/* Show verify button if advanced verification is required and not yet verified */}
-                      {requiresVerification && !isLivenessVerified && (
-                        <Button
-                          type="button"
-                          onClick={() => setShowLivenessVerification(true)}
-                          className="flex-1 btn-primary-gradient"
-                        >
-                          <Shield className="w-4 h-4 mr-2" />
-                          Xác minh
-                        </Button>
-                      )}
+
                     </>
                   ) : isCameraActive ? (
                     <>
@@ -654,25 +641,7 @@ const AttendanceForm = ({ classInfo, onClose, onSuccess }: AttendanceFormProps) 
                   )}
                 </div>
 
-                {/* Advanced Verification Status */}
-                {requiresVerification && (
-                  <div className={`p-3 rounded-xl flex items-center gap-2 ${isLivenessVerified
-                      ? "bg-green-500/10 text-green-600"
-                      : "bg-amber-500/10 text-amber-600"
-                    }`}>
-                    {isLivenessVerified ? (
-                      <>
-                        <CheckCircle className="w-5 h-5" />
-                        <span className="text-sm font-medium">Đã xác minh danh tính</span>
-                      </>
-                    ) : (
-                      <>
-                        <Shield className="w-5 h-5" />
-                        <span className="text-sm">Chụp ảnh và bấm "Xác minh" để tiếp tục</span>
-                      </>
-                    )}
-                  </div>
-                )}
+
               </div>
 
               {/* Name Input */}
@@ -686,7 +655,7 @@ const AttendanceForm = ({ classInfo, onClose, onSuccess }: AttendanceFormProps) 
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="input-modern"
-                  disabled={requiresVerification && !isLivenessVerified}
+
                 />
                 {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
               </div>
@@ -704,7 +673,7 @@ const AttendanceForm = ({ classInfo, onClose, onSuccess }: AttendanceFormProps) 
                   className="input-modern"
                   inputMode="numeric"
                   pattern="[0-9]*"
-                  disabled={requiresVerification && !isLivenessVerified}
+
                 />
                 {errors.studentCode && <p className="text-sm text-destructive">{errors.studentCode}</p>}
               </div>
@@ -722,7 +691,7 @@ const AttendanceForm = ({ classInfo, onClose, onSuccess }: AttendanceFormProps) 
                   className="input-modern"
                   inputMode="numeric"
                   pattern="[0-9]*"
-                  disabled={requiresVerification && !isLivenessVerified}
+
                 />
                 {errors.groupNumber && <p className="text-sm text-destructive">{errors.groupNumber}</p>}
               </div>
@@ -780,7 +749,7 @@ const AttendanceForm = ({ classInfo, onClose, onSuccess }: AttendanceFormProps) 
               {/* Submit Button */}
               <Button
                 type="submit"
-                disabled={isLoading || (requiresVerification && !isLivenessVerified) || !!studentNotFoundError || !name.trim() || !studentCode.trim() || !groupNumber.trim() || !photoData}
+                disabled={isLoading || !!studentNotFoundError || !name.trim() || !studentCode.trim() || !groupNumber.trim() || !photoData}
                 className="w-full btn-primary-gradient py-6 text-base"
               >
                 {isLoading ? (
@@ -788,8 +757,6 @@ const AttendanceForm = ({ classInfo, onClose, onSuccess }: AttendanceFormProps) 
                     <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                     Đang lưu...
                   </>
-                ) : requiresVerification && !isLivenessVerified ? (
-                  "Vui lòng xác minh danh tính trước"
                 ) : studentNotFoundError ? (
                   "Không thể lưu điểm danh"
                 ) : !name.trim() || !studentCode.trim() || !groupNumber.trim() ? (
@@ -805,18 +772,7 @@ const AttendanceForm = ({ classInfo, onClose, onSuccess }: AttendanceFormProps) 
         </div>
       </div>
 
-      {/* Liveness Verification Modal */}
-      {showLivenessVerification && photoData && (
-        <LivenessVerification
-          referencePhotoUrl={photoData}
-          onVerified={() => {
-            setIsLivenessVerified(true);
-            setShowLivenessVerification(false);
-            toast.success("Xác minh danh tính thành công!");
-          }}
-          onCancel={() => setShowLivenessVerification(false)}
-        />
-      )}
+
     </div>
   );
 };
