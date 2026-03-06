@@ -14,142 +14,63 @@ export type Database = {
   }
   public: {
     Tables: {
-      attendance_records: {
+      face_images: {
         Row: {
-          bonus_points: number | null
-          class_id: string
           created_at: string
-          group_number: string
+          face_descriptor: Json | null
+          file_size: number | null
           id: string
+          image_url: string
           name: string
-          photo_url: string | null
-          student_code: string
-          week_number: number
+          user_id: string
         }
         Insert: {
-          bonus_points?: number | null
-          class_id: string
           created_at?: string
-          group_number: string
+          face_descriptor?: Json | null
+          file_size?: number | null
           id?: string
+          image_url: string
           name: string
-          photo_url?: string | null
-          student_code: string
-          week_number?: number
+          user_id: string
         }
         Update: {
-          bonus_points?: number | null
-          class_id?: string
           created_at?: string
-          group_number?: string
+          face_descriptor?: Json | null
+          file_size?: number | null
           id?: string
+          image_url?: string
           name?: string
-          photo_url?: string | null
-          student_code?: string
-          week_number?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "attendance_records_class_id_fkey"
-            columns: ["class_id"]
-            isOneToOne: false
-            referencedRelation: "classes"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      classes: {
-        Row: {
-          admin_latitude: number | null
-          admin_longitude: number | null
-          attendance_duration_minutes: number | null
-          attendance_started_at: string | null
-          code: string
-          created_at: string
-          current_week: number | null
-          id: string
-          name: string
-          weeks_count: number
-        }
-        Insert: {
-          admin_latitude?: number | null
-          admin_longitude?: number | null
-          attendance_duration_minutes?: number | null
-          attendance_started_at?: string | null
-          code: string
-          created_at?: string
-          current_week?: number | null
-          id?: string
-          name: string
-          weeks_count?: number
-        }
-        Update: {
-          admin_latitude?: number | null
-          admin_longitude?: number | null
-          attendance_duration_minutes?: number | null
-          attendance_started_at?: string | null
-          code?: string
-          created_at?: string
-          current_week?: number | null
-          id?: string
-          name?: string
-          weeks_count?: number
+          user_id?: string
         }
         Relationships: []
       }
-      students: {
+      profiles: {
         Row: {
-          class_id: string
+          avatar_url: string | null
           created_at: string
-          group_number: string
+          email: string | null
+          full_name: string | null
           id: string
-          name: string
-          student_code: string
+          updated_at: string
+          user_id: string
         }
         Insert: {
-          class_id: string
+          avatar_url?: string | null
           created_at?: string
-          group_number: string
+          email?: string | null
+          full_name?: string | null
           id?: string
-          name: string
-          student_code: string
+          updated_at?: string
+          user_id: string
         }
         Update: {
-          class_id?: string
+          avatar_url?: string | null
           created_at?: string
-          group_number?: string
+          email?: string | null
+          full_name?: string | null
           id?: string
-          name?: string
-          student_code?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "students_class_id_fkey"
-            columns: ["class_id"]
-            isOneToOne: false
-            referencedRelation: "classes"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      teachers: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          email: string
-          id: string
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          email: string
-          id?: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          email?: string
-          id?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

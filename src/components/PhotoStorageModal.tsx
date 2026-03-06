@@ -103,13 +103,13 @@ const PhotoStorageModal = ({ classInfo, onClose }: PhotoStorageModalProps) => {
   const fetchAttendanceRecords = async () => {
     try {
       const { data, error } = await supabase
-        .from("attendance_records")
+        .from("attendance_records" as any)
         .select("*")
         .eq("class_id", classInfo.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setAttendanceRecords(data || []);
+      setAttendanceRecords((data as any[]) || []);
     } catch (error) {
       console.error("Error fetching attendance records:", error);
       toast.error("Không thể tải dữ liệu điểm danh!");

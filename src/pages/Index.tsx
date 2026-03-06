@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, memo, lazy, Suspense } from "react";
+import { useState, useCallback, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,8 +8,9 @@ import { User, LogIn, CheckCircle, Loader2, MapPin } from "lucide-react";
 import LoginModal from "@/components/LoginModal";
 import useGPS, { calculateDistance } from "@/hooks/useGPS";
 
-// Lazy load AttendanceForm for better initial load performance
+// Lazy load heavy components
 const AttendanceForm = lazy(() => import("@/components/AttendanceForm"));
+const LocationMap = lazy(() => import("@/components/LocationMap"));
 
 interface ClassData {
   id: string;
@@ -20,6 +21,7 @@ interface ClassData {
   admin_latitude: number | null;
   admin_longitude: number | null;
   current_week: number | null;
+  advanced_verification: boolean | null;
 }
 
 const Index = () => {
@@ -29,7 +31,15 @@ const Index = () => {
   const [verifiedClass, setVerifiedClass] = useState<ClassData | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isCheckingGPS, setIsCheckingGPS] = useState(false);
-  
+
+  interface MapData {
+    adminLat: number; adminLng: number;
+    userLat: number; userLng: number;
+    distance: number; maxDistance: number;
+    isInside: boolean;
+  }
+  const [mapData, setMapData] = useState<MapData | null>(null);
+
   const { getAveragePosition } = useGPS();
 
   const handleVerifyCode = useCallback(async () => {
@@ -41,48 +51,60 @@ const Index = () => {
     setIsVerifying(true);
     try {
       const { data, error } = await supabase
-        .from("classes")
-        .select("id, name, weeks_count, attendance_duration_minutes, attendance_started_at, admin_latitude, admin_longitude, current_week")
+        .from("classes" as any)
+        .select("id, name, weeks_count, attendance_duration_minutes, attendance_started_at, admin_latitude, admin_longitude, current_week, advanced_verification")
         .eq("code", attendanceCode)
         .maybeSingle();
 
       if (error) throw error;
 
       if (data) {
+        const classData = data as any;
         // Check if attendance is still active
-        if (data.attendance_started_at && data.attendance_duration_minutes) {
-          const startTime = new Date(data.attendance_started_at).getTime();
-          const endTime = startTime + data.attendance_duration_minutes * 60 * 1000;
-          
+        if (classData.attendance_started_at && classData.attendance_duration_minutes) {
+          const startTime = new Date(classData.attendance_started_at).getTime();
+          const endTime = startTime + classData.attendance_duration_minutes * 60 * 1000;
+
           if (Date.now() > endTime) {
             toast.error("Mã điểm danh đã hết hiệu lực! Vui lòng liên hệ giảng viên.");
             return;
           }
         }
-        
+
         // Check GPS if admin location is set
-        if (data.admin_latitude && data.admin_longitude) {
+        if (classData.admin_latitude && classData.admin_longitude) {
           setIsCheckingGPS(true);
           try {
             toast.info("Đang xác minh vị trí của bạn...");
             const userPosition = await getAveragePosition();
-            
+
+            const MAX_DISTANCE = 300;
             const distance = calculateDistance(
-              data.admin_latitude,
-              data.admin_longitude,
+              classData.admin_latitude,
+              classData.admin_longitude,
               userPosition.latitude,
               userPosition.longitude
             );
-            
-            // Max distance: 350m (between 300-400m)
-            const MAX_DISTANCE = 350;
-            
-            if (distance > MAX_DISTANCE) {
-              toast.error(`Bạn không ở gần giảng viên (cách ${Math.round(distance)}m). Vui lòng di chuyển lại gần và thử lại!`);
+
+            const isInside = distance <= MAX_DISTANCE;
+
+            // Store map data to display
+            setMapData({
+              adminLat: classData.admin_latitude,
+              adminLng: classData.admin_longitude,
+              userLat: userPosition.latitude,
+              userLng: userPosition.longitude,
+              distance,
+              maxDistance: MAX_DISTANCE,
+              isInside,
+            });
+
+            if (!isInside) {
+              toast.error(`Bạn ở ngoài phạm vi cho phép (cách ${Math.round(distance)}m, yêu cầu trong ${MAX_DISTANCE}m).`);
               return;
             }
-            
-            toast.success(`Vị trí hợp lệ (cách ${Math.round(distance)}m)`);
+
+            toast.success(`Vị trí hợp lệ — cách lớp ${Math.round(distance)}m ✓`);
           } catch (gpsError) {
             console.error("GPS error:", gpsError);
             const message = gpsError instanceof Error ? gpsError.message : "Không thể xác minh vị trí";
@@ -92,9 +114,9 @@ const Index = () => {
             setIsCheckingGPS(false);
           }
         }
-        
-        setVerifiedClass(data);
-        toast.success(`Đã tìm thấy lớp: ${data.name}`);
+
+        setVerifiedClass(classData);
+        toast.success(`Đã tìm thấy lớp: ${classData.name}`);
       } else {
         toast.error("Mã điểm danh không tồn tại!");
       }
@@ -115,6 +137,7 @@ const Index = () => {
   const handleCodeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, "").slice(0, 6);
     setAttendanceCode(value);
+    setMapData(null); // reset map when code changes
   }, []);
 
   const handleCloseModal = useCallback(() => setVerifiedClass(null), []);
@@ -195,6 +218,53 @@ const Index = () => {
             </Button>
           </div>
         </div>
+
+        {/* GPS Map Result */}
+        {mapData && (
+          <div className={`w-full max-w-md mt-4 rounded-2xl overflow-hidden shadow-lg border animate-slide-up ${mapData.isInside ? "border-green-500/40" : "border-red-500/40"
+            }`}>
+            {/* Status bar */}
+            <div className={`px-4 py-3 flex items-center justify-between ${mapData.isInside
+                ? "bg-green-500/15 text-green-600"
+                : "bg-red-500/15 text-red-600"
+              }`}>
+              <div className="flex items-center gap-2 font-semibold text-sm">
+                <MapPin className="w-4 h-4" />
+                {mapData.isInside ? "Trong phạm vi cho phép" : "Ngoài phạm vi cho phép"}
+              </div>
+              <span className="text-xs font-mono bg-white/50 px-2 py-0.5 rounded-full">
+                {Math.round(mapData.distance)}m / {mapData.maxDistance}m
+              </span>
+            </div>
+
+            {/* Map */}
+            <Suspense fallback={
+              <div className="h-[280px] flex items-center justify-center bg-muted">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              </div>
+            }>
+              <LocationMap
+                adminLat={mapData.adminLat}
+                adminLng={mapData.adminLng}
+                userLat={mapData.userLat}
+                userLng={mapData.userLng}
+                distance={mapData.distance}
+                maxDistance={mapData.maxDistance}
+              />
+            </Suspense>
+
+            {/* Legend */}
+            <div className="px-4 py-2 bg-background/80 flex items-center gap-4 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1"><span className="text-base">🏫</span> Lớp học</span>
+              <span className="flex items-center gap-1"><span className="text-base">📍</span> Vị trí của bạn</span>
+              <span className="flex items-center gap-1">
+                <span className={`w-3 h-3 rounded-full border-2 ${mapData.isInside ? "border-green-500" : "border-red-500"
+                  }`} />
+                Bán kính {mapData.maxDistance}m
+              </span>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Login Modal */}

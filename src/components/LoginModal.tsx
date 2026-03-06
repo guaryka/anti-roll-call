@@ -145,7 +145,7 @@ const LoginModal = ({ onClose, onSuccess }: LoginModalProps) => {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="admindiemdanh@gmail.com"
+                  placeholder="admin@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-11 input-modern"
@@ -163,7 +163,7 @@ const LoginModal = ({ onClose, onSuccess }: LoginModalProps) => {
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Admin123@"
+                  placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-11 input-modern"

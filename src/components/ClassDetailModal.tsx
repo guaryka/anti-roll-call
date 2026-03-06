@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { 
@@ -17,9 +18,14 @@ import {
   XCircle,
   FolderOpen,
   Star,
-  Calendar
+  Calendar,
+  Search,
+  ChevronDown,
+  ChevronUp,
+  AlertTriangle
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import PhotoViewModal from "@/components/PhotoViewModal";
 import PhotoStorageModal from "@/components/PhotoStorageModal";
 import * as XLSX from "xlsx";
@@ -65,7 +71,62 @@ const ClassDetailModal = ({ classInfo, onClose }: ClassDetailModalProps) => {
   const [currentWeek, setCurrentWeek] = useState(1);
   const [attendanceWeekFilter, setAttendanceWeekFilter] = useState<number | null>(null); // null = all weeks
   const [showPhotoStorage, setShowPhotoStorage] = useState(false);
+  const [attendanceSearch, setAttendanceSearch] = useState(""); // Search for attendance
+  const [studentSearch, setStudentSearch] = useState(""); // Search for student list
+  const [showImportSection, setShowImportSection] = useState(false); // Collapsible import
+  const [showDuplicates, setShowDuplicates] = useState(false); // Show duplicate attendance
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Search filter for students list
+  const filteredStudents = useMemo(() => {
+    if (!studentSearch.trim()) return students;
+    const searchLower = studentSearch.toLowerCase().trim();
+    return students.filter(s => 
+      s.name.toLowerCase().includes(searchLower) ||
+      s.student_code.toLowerCase().includes(searchLower)
+    );
+  }, [students, studentSearch]);
+
+  // Find duplicate attendance (same student attended 2+ times in same week)
+  const duplicateRecords = useMemo(() => {
+    const countMap = new Map<string, AttendanceRecord[]>();
+    attendanceRecords.forEach(r => {
+      const key = `${r.student_code.toLowerCase()}_week${r.week_number}`;
+      if (!countMap.has(key)) {
+        countMap.set(key, []);
+      }
+      countMap.get(key)!.push(r);
+    });
+    
+    const duplicates: AttendanceRecord[] = [];
+    countMap.forEach(records => {
+      if (records.length >= 2) {
+        duplicates.push(...records);
+      }
+    });
+    return duplicates.sort((a, b) => a.week_number - b.week_number);
+  }, [attendanceRecords]);
+
+  // Search filter for attendance - shows all weeks for a matching student
+  const filteredAttendanceRecords = useMemo(() => {
+    // If showing duplicates, return duplicate records only
+    if (showDuplicates) {
+      return duplicateRecords;
+    }
+    
+    if (!attendanceSearch.trim()) {
+      // No search - use week filter
+      if (attendanceWeekFilter === null) return attendanceRecords;
+      return attendanceRecords.filter(r => r.week_number === attendanceWeekFilter);
+    }
+    
+    // With search - show all weeks for matching students
+    const searchLower = attendanceSearch.toLowerCase().trim();
+    return attendanceRecords.filter(r => 
+      r.name.toLowerCase().includes(searchLower) ||
+      r.student_code.toLowerCase().includes(searchLower)
+    );
+  }, [attendanceRecords, attendanceWeekFilter, attendanceSearch, showDuplicates, duplicateRecords]);
 
   useEffect(() => {
     fetchData();
@@ -75,15 +136,15 @@ const ClassDetailModal = ({ classInfo, onClose }: ClassDetailModalProps) => {
   const fetchData = async () => {
     try {
       const [studentsRes, attendanceRes] = await Promise.all([
-        supabase.from("students").select("*").eq("class_id", classInfo.id).order("name"),
-        supabase.from("attendance_records").select("*").eq("class_id", classInfo.id).order("created_at", { ascending: false }),
+        supabase.from("students" as any).select("*").eq("class_id", classInfo.id).order("name"),
+        supabase.from("attendance_records" as any).select("*").eq("class_id", classInfo.id).order("created_at", { ascending: false }),
       ]);
 
       if (studentsRes.error) throw studentsRes.error;
       if (attendanceRes.error) throw attendanceRes.error;
 
-      setStudents(studentsRes.data || []);
-      setAttendanceRecords(attendanceRes.data || []);
+      setStudents((studentsRes.data as any[]) || []);
+      setAttendanceRecords((attendanceRes.data as any[]) || []);
     } catch (error) {
       console.error("Error fetching data:", error);
       toast.error("Không thể tải dữ liệu!");
@@ -153,13 +214,13 @@ const ClassDetailModal = ({ classInfo, onClose }: ClassDetailModalProps) => {
       }));
 
       const { data, error } = await supabase
-        .from("students")
+        .from("students" as any)
         .insert(studentsToInsert)
         .select();
 
       if (error) throw error;
 
-      setStudents((prev) => [...prev, ...(data || [])]);
+      setStudents((prev) => [...prev, ...((data as any[]) || [])]);
       setExcelInput("");
       toast.success(`Đã thêm ${parsedStudents.length} sinh viên!`);
     } catch (error) {
@@ -210,13 +271,13 @@ const ClassDetailModal = ({ classInfo, onClose }: ClassDetailModalProps) => {
       }));
 
       const { data: insertedData, error } = await supabase
-        .from("students")
+        .from("students" as any)
         .insert(studentsToInsert)
         .select();
 
       if (error) throw error;
 
-      setStudents((prev) => [...prev, ...(insertedData || [])]);
+      setStudents((prev) => [...prev, ...((insertedData as any[]) || [])]);
       toast.success(`Đã thêm ${parsedStudents.length} sinh viên từ file!`);
     } catch (error) {
       console.error("File upload error:", error);
@@ -229,7 +290,7 @@ const ClassDetailModal = ({ classInfo, onClose }: ClassDetailModalProps) => {
 
   const handleDeleteStudent = async (studentId: string) => {
     try {
-      const { error } = await supabase.from("students").delete().eq("id", studentId);
+      const { error } = await supabase.from("students" as any).delete().eq("id", studentId);
       if (error) throw error;
       setStudents((prev) => prev.filter((s) => s.id !== studentId));
       toast.success("Đã xóa sinh viên!");
@@ -241,7 +302,7 @@ const ClassDetailModal = ({ classInfo, onClose }: ClassDetailModalProps) => {
 
   const handleDeleteAttendance = async (recordId: string) => {
     try {
-      const { error } = await supabase.from("attendance_records").delete().eq("id", recordId);
+      const { error } = await supabase.from("attendance_records" as any).delete().eq("id", recordId);
       if (error) throw error;
       setAttendanceRecords((prev) => prev.filter((r) => r.id !== recordId));
       toast.success("Đã xóa bản ghi điểm danh!");
@@ -333,9 +394,9 @@ const ClassDetailModal = ({ classInfo, onClose }: ClassDetailModalProps) => {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-hidden flex flex-col">
-          <Tabs defaultValue="students" className="h-full flex flex-col">
-            <div className="mx-4 md:mx-6 mt-4 shrink-0 flex items-center justify-between flex-wrap gap-2">
+        <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+          <Tabs defaultValue="students" className="flex-1 flex flex-col min-h-0">
+            <div className="mx-4 md:mx-6 mt-3 shrink-0 flex items-center justify-between flex-wrap gap-2">
               <TabsList>
                 <TabsTrigger value="students" className="flex items-center gap-2">
                   <Users className="w-4 h-4" />
@@ -356,83 +417,114 @@ const ClassDetailModal = ({ classInfo, onClose }: ClassDetailModalProps) => {
               </Button>
             </div>
 
-            <TabsContent value="students" className="flex-1 overflow-hidden flex flex-col mt-4 px-4 md:px-6 pb-4 md:pb-6">
-              {/* Excel Import */}
-              <div className="mb-4 p-4 bg-muted/50 rounded-xl shrink-0">
-                <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
-                  <FileSpreadsheet className="w-4 h-4" />
-                  Import từ Excel
-                </h3>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Tải file Excel hoặc copy dữ liệu theo định dạng: Tên sinh viên, Mã SV, Số nhóm
-                </p>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".xlsx,.xls,.csv"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
-                  <Button
-                    variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isImporting}
-                  >
-                    <Upload className="w-4 h-4 mr-2" />
-                    Tải file Excel
+            <TabsContent value="students" className="flex-1 flex flex-col min-h-0 mt-2 px-4 md:px-6 pb-4 md:pb-6 data-[state=inactive]:hidden">
+              {/* Collapsible Excel Import */}
+              <Collapsible open={showImportSection} onOpenChange={setShowImportSection} className="mb-3 shrink-0">
+                <CollapsibleTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    <span className="flex items-center gap-2">
+                      <FileSpreadsheet className="w-4 h-4" />
+                      Import / Export Excel
+                    </span>
+                    {showImportSection ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </Button>
-                  <Button
-                    variant="outline"
-                    onClick={handleExportExcel}
-                    disabled={students.length === 0}
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Xuất Excel
-                  </Button>
-                </div>
-                <div className="flex gap-2">
-                  <textarea
-                    placeholder="Nguyễn Văn A, SV001, 1&#10;Trần Thị B, SV002, 2"
-                    value={excelInput}
-                    onChange={(e) => setExcelInput(e.target.value)}
-                    className="flex-1 min-h-[80px] p-3 border rounded-lg text-sm resize-none bg-background"
-                  />
-                  <Button
-                    onClick={handleImportExcel}
-                    disabled={isImporting}
-                    className="btn-primary-gradient self-end"
-                  >
-                    {isImporting ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-2">
+                  <div className="p-4 bg-muted/50 rounded-xl">
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Tải file Excel hoặc copy dữ liệu theo định dạng: Tên sinh viên, Mã SV, Số nhóm
+                    </p>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".xlsx,.xls,.csv"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isImporting}
+                      >
                         <Upload className="w-4 h-4 mr-2" />
-                        Import
-                      </>
-                    )}
-                  </Button>
+                        Tải file
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleExportExcel}
+                        disabled={students.length === 0}
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Xuất Excel
+                      </Button>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <textarea
+                        placeholder="Nguyễn Văn A, SV001, 1&#10;Trần Thị B, SV002, 2"
+                        value={excelInput}
+                        onChange={(e) => setExcelInput(e.target.value)}
+                        className="flex-1 min-h-[60px] p-3 border rounded-lg text-sm resize-none bg-background"
+                      />
+                      <Button
+                        onClick={handleImportExcel}
+                        disabled={isImporting}
+                        className="btn-primary-gradient sm:self-end"
+                      >
+                        {isImporting ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Upload className="w-4 h-4 mr-2" />
+                            Import
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+
+              {/* Search and Week selector row */}
+              <div className="mb-2 flex flex-col sm:flex-row gap-2 shrink-0">
+                {/* Search box */}
+                <div className="relative flex-1 max-w-xs">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Tìm tên hoặc mã SV..."
+                    value={studentSearch}
+                    onChange={(e) => setStudentSearch(e.target.value)}
+                    className="pl-10 h-9"
+                  />
+                </div>
+                
+                {/* Week selector */}
+                <div className="flex items-center gap-1 overflow-x-auto pb-1">
+                  <span className="text-sm text-muted-foreground whitespace-nowrap mr-1">Tuần:</span>
+                  {Array.from({ length: classInfo.weeks_count }, (_, i) => i + 1).map((week) => (
+                    <Button
+                      key={week}
+                      size="sm"
+                      variant={currentWeek === week ? "default" : "outline"}
+                      onClick={() => setCurrentWeek(week)}
+                      className="min-w-[36px] h-8 px-2"
+                    >
+                      {week}
+                    </Button>
+                  ))}
                 </div>
               </div>
-
-              {/* Week selector */}
-              <div className="mb-4 flex items-center gap-2 shrink-0 overflow-x-auto pb-2">
-                <span className="text-sm text-muted-foreground whitespace-nowrap">Tuần:</span>
-                {Array.from({ length: classInfo.weeks_count }, (_, i) => i + 1).map((week) => (
-                  <Button
-                    key={week}
-                    size="sm"
-                    variant={currentWeek === week ? "default" : "outline"}
-                    onClick={() => setCurrentWeek(week)}
-                    className="min-w-[40px]"
-                  >
-                    {week}
-                  </Button>
-                ))}
-              </div>
+              
+              {studentSearch && (
+                <p className="text-xs text-muted-foreground mb-2 shrink-0">
+                  Tìm thấy {filteredStudents.length} sinh viên
+                </p>
+              )}
 
               {/* Students List with attendance status */}
-              <div className="flex-1 overflow-auto min-h-0">
+              <div className="flex-1 min-h-0 overflow-hidden">
                 {isLoading ? (
                   <div className="flex items-center justify-center py-12">
                     <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -443,32 +535,36 @@ const ClassDetailModal = ({ classInfo, onClose }: ClassDetailModalProps) => {
                     <p>Chưa có sinh viên. Hãy import từ Excel!</p>
                   </div>
                 ) : (
-                  <div className="border rounded-xl overflow-hidden">
-                    <table className="w-full">
-                      <thead className="bg-muted/50 sticky top-0">
-                        <tr>
-                          <th className="text-left p-3 text-sm font-medium">#</th>
-                          <th className="text-left p-3 text-sm font-medium">Tên sinh viên</th>
-                          <th className="text-left p-3 text-sm font-medium">Mã SV</th>
-                          <th className="text-left p-3 text-sm font-medium">Nhóm</th>
-                          <th className="text-center p-3 text-sm font-medium">Tuần {currentWeek}</th>
-                          <th className="text-center p-3 text-sm font-medium">
-                            <Star className="w-4 h-4 inline text-yellow-500" />
-                          </th>
-                          <th className="text-right p-3 text-sm font-medium">Thao tác</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {students.map((student, index) => {
+                  <div className="border rounded-xl overflow-hidden h-full">
+                    <div className="overflow-auto h-full">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50 sticky top-0 z-10">
+                          <tr>
+                            <th className="text-left p-2 md:p-3 font-medium">#</th>
+                            <th className="text-left p-2 md:p-3 font-medium">Tên sinh viên</th>
+                            <th className="text-left p-2 md:p-3 font-medium hidden sm:table-cell">Mã SV</th>
+                            <th className="text-left p-2 md:p-3 font-medium hidden md:table-cell">Nhóm</th>
+                            <th className="text-center p-2 md:p-3 font-medium">T{currentWeek}</th>
+                            <th className="text-center p-2 md:p-3 font-medium">
+                              <Star className="w-4 h-4 inline text-yellow-500" />
+                            </th>
+                            <th className="text-right p-2 md:p-3 font-medium">Xóa</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                        {filteredStudents.map((student, index) => {
                           const attended = didAttendInWeek(student.student_code, currentWeek);
                           const bonusPoints = getTotalBonusPoints(student.student_code);
                           return (
                             <tr key={student.id} className="hover:bg-muted/30 transition-colors">
-                              <td className="p-3 text-sm text-muted-foreground">{index + 1}</td>
-                              <td className="p-3 font-medium">{student.name}</td>
-                              <td className="p-3 text-sm font-mono">{student.student_code}</td>
-                              <td className="p-3 text-sm">{student.group_number}</td>
-                              <td className="p-3 text-center">
+                              <td className="p-2 md:p-3 text-muted-foreground">{index + 1}</td>
+                              <td className="p-2 md:p-3 font-medium">
+                                <div>{student.name}</div>
+                                <div className="text-xs text-muted-foreground sm:hidden">{student.student_code}</div>
+                              </td>
+                              <td className="p-2 md:p-3 font-mono hidden sm:table-cell">{student.student_code}</td>
+                              <td className="p-2 md:p-3 hidden md:table-cell">{student.group_number}</td>
+                              <td className="p-2 md:p-3 text-center">
                                 <button
                                   onClick={() => {
                                     toast.info(
@@ -485,17 +581,18 @@ const ClassDetailModal = ({ classInfo, onClose }: ClassDetailModalProps) => {
                                   )}
                                 </button>
                               </td>
-                              <td className="p-3 text-center">
+                              <td className="p-2 md:p-3 text-center">
                                 {bonusPoints > 0 && (
-                                  <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-lg text-sm font-medium">
+                                  <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded text-xs font-medium">
                                     +{bonusPoints}
                                   </span>
                                 )}
                               </td>
-                              <td className="p-3 text-right">
+                              <td className="p-2 md:p-3 text-right">
                                 <Button
                                   variant="ghost"
                                   size="icon"
+                                  className="h-8 w-8"
                                   onClick={() => handleDeleteStudent(student.id)}
                                 >
                                   <Trash2 className="w-4 h-4 text-destructive" />
@@ -503,55 +600,99 @@ const ClassDetailModal = ({ classInfo, onClose }: ClassDetailModalProps) => {
                               </td>
                             </tr>
                           );
-                        })}
-                      </tbody>
-                    </table>
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
               </div>
             </TabsContent>
 
-            <TabsContent value="attendance" className="flex-1 overflow-hidden flex flex-col mt-4 px-4 md:px-6 pb-4 md:pb-6">
-              {/* Week filter for attendance */}
-              <div className="flex items-center gap-2 shrink-0 overflow-x-auto pb-2 mb-2">
-                <span className="text-sm text-muted-foreground whitespace-nowrap">Lọc tuần:</span>
+            <TabsContent value="attendance" className="flex-1 flex flex-col min-h-0 mt-2 px-4 md:px-6 pb-4 md:pb-6 data-[state=inactive]:hidden">
+              {/* Search box and duplicate check button */}
+              <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+                <div className="relative flex-1 max-w-xs">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Tìm tên hoặc mã SV..."
+                    value={attendanceSearch}
+                    onChange={(e) => {
+                      setAttendanceSearch(e.target.value);
+                      setShowDuplicates(false);
+                    }}
+                    className="pl-10 h-9"
+                  />
+                </div>
                 <Button
                   size="sm"
-                  variant={attendanceWeekFilter === null ? "default" : "outline"}
-                  onClick={() => setAttendanceWeekFilter(null)}
-                  className="min-w-[60px]"
+                  variant={showDuplicates ? "default" : "outline"}
+                  onClick={() => {
+                    setShowDuplicates(!showDuplicates);
+                    setAttendanceSearch("");
+                  }}
+                  className="flex items-center gap-2 h-9"
                 >
-                  Tất cả
+                  <AlertTriangle className="w-4 h-4" />
+                  Kiểm tra lặp {duplicateRecords.length > 0 && `(${duplicateRecords.length})`}
                 </Button>
-                {Array.from({ length: classInfo.weeks_count }, (_, i) => i + 1).map((week) => (
-                  <Button
-                    key={week}
-                    size="sm"
-                    variant={attendanceWeekFilter === week ? "default" : "outline"}
-                    onClick={() => setAttendanceWeekFilter(week)}
-                    className="min-w-[40px]"
-                  >
-                    {week}
-                  </Button>
-                ))}
               </div>
+              
+              {attendanceSearch && (
+                <p className="text-xs text-muted-foreground mt-1 shrink-0">
+                  Tìm thấy {filteredAttendanceRecords.length} kết quả - hiển thị tất cả tuần
+                </p>
+              )}
+              
+              {showDuplicates && (
+                <p className="text-xs text-yellow-600 mt-1 shrink-0 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  Hiển thị {duplicateRecords.length} bản ghi lặp (sinh viên điểm danh ≥2 lần trong cùng tuần)
+                </p>
+              )}
+
+              {/* Week filter for attendance */}
+              {!attendanceSearch && !showDuplicates && (
+                <div className="flex items-center gap-1 shrink-0 overflow-x-auto py-2">
+                  <span className="text-sm text-muted-foreground whitespace-nowrap mr-1">Lọc:</span>
+                  <Button
+                    size="sm"
+                    variant={attendanceWeekFilter === null ? "default" : "outline"}
+                    onClick={() => setAttendanceWeekFilter(null)}
+                    className="min-w-[50px] h-8 px-2"
+                  >
+                    Tất cả
+                  </Button>
+                  {Array.from({ length: classInfo.weeks_count }, (_, i) => i + 1).map((week) => (
+                    <Button
+                      key={week}
+                      size="sm"
+                      variant={attendanceWeekFilter === week ? "default" : "outline"}
+                      onClick={() => setAttendanceWeekFilter(week)}
+                      className="min-w-[36px] h-8 px-2"
+                    >
+                      {week}
+                    </Button>
+                  ))}
+                </div>
+              )}
 
               {isLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
                 </div>
-              ) : attendanceRecords.length === 0 ? (
+              ) : filteredAttendanceRecords.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <CheckCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>Chưa có ai điểm danh</p>
+                  <p>{attendanceSearch ? "Không tìm thấy kết quả" : showDuplicates ? "Không có bản ghi lặp" : "Chưa có ai điểm danh"}</p>
                 </div>
               ) : (
-                <div className="flex-1 overflow-auto">
-                  {/* Group records by week if filter is null */}
-                  {attendanceWeekFilter === null ? (
-                    <div className="space-y-6">
+                <div className="flex-1 min-h-0 overflow-auto mt-2">
+                  {/* Group records by week if filter is null and no search and not showing duplicates */}
+                  {attendanceWeekFilter === null && !attendanceSearch && !showDuplicates ? (
+                    <div className="space-y-4">
                       {Array.from({ length: classInfo.weeks_count }, (_, i) => i + 1).map((week) => {
-                        const weekRecords = attendanceRecords.filter(r => r.week_number === week);
+                        const weekRecords = filteredAttendanceRecords.filter(r => r.week_number === week);
                         if (weekRecords.length === 0) return null;
                         return (
                           <div key={week} className="border rounded-xl overflow-hidden">
@@ -626,9 +767,9 @@ const ClassDetailModal = ({ classInfo, onClose }: ClassDetailModalProps) => {
                       })}
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto border rounded-xl">
                       <table className="w-full">
-                        <thead className="bg-muted/50">
+                        <thead className="bg-muted/50 sticky top-0 z-10">
                           <tr>
                             <th className="text-left p-3 text-sm font-medium">#</th>
                             <th className="text-left p-3 text-sm font-medium">Thời gian</th>
@@ -644,9 +785,7 @@ const ClassDetailModal = ({ classInfo, onClose }: ClassDetailModalProps) => {
                           </tr>
                         </thead>
                         <tbody className="divide-y">
-                          {attendanceRecords
-                            .filter(r => r.week_number === attendanceWeekFilter)
-                            .map((record, index) => (
+                          {filteredAttendanceRecords.map((record, index) => (
                             <tr key={record.id} className="hover:bg-muted/30 transition-colors">
                               <td className="p-3 text-sm text-muted-foreground">{index + 1}</td>
                               <td className="p-3 text-sm text-muted-foreground">

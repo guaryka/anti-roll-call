@@ -53,7 +53,7 @@ const CreateTeacherModal = ({ onClose }: CreateTeacherModalProps) => {
       // First, add to teachers table (before creating auth account)
       // This ensures the RLS policy check passes
       const { error: teacherError } = await supabase
-        .from("teachers")
+        .from("teachers" as any)
         .insert({
           email: email.trim().toLowerCase(),
           created_by: adminUserId,
@@ -77,7 +77,7 @@ const CreateTeacherModal = ({ onClose }: CreateTeacherModalProps) => {
 
       if (signUpError) {
         // Rollback: delete from teachers table
-        await supabase.from("teachers").delete().eq("email", email.trim().toLowerCase());
+        await supabase.from("teachers" as any).delete().eq("email", email.trim().toLowerCase());
         
         if (signUpError.message.includes("already registered")) {
           toast.error("Email này đã được đăng ký!");
@@ -89,7 +89,7 @@ const CreateTeacherModal = ({ onClose }: CreateTeacherModalProps) => {
 
       if (!signUpData.user) {
         // Rollback: delete from teachers table
-        await supabase.from("teachers").delete().eq("email", email.trim().toLowerCase());
+        await supabase.from("teachers" as any).delete().eq("email", email.trim().toLowerCase());
         throw new Error("Không thể tạo tài khoản!");
       }
 

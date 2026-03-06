@@ -18,6 +18,4 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  // Use base path for both development and production
-  base: '/anti-roll-call/'
 }));
