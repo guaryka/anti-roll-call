@@ -48,34 +48,6 @@ const Index = () => {
       return;
     }
 
-    // ── 🚧 FAKE / TEST MODE ── xóa block này khi đã test xong ──────────────
-    const FAKE_ADMIN_LAT = 10.7769;   // Hồ Chí Minh city center (lớp học)
-    const FAKE_ADMIN_LNG = 106.7009;
-    const FAKE_USER_LAT = 10.7780;   // cách ~150m (trong phạm vi)
-    const FAKE_USER_LNG = 106.7022;
-    const FAKE_DISTANCE = 150;
-    const FAKE_MAX_DIST = 300;
-    setMapData({
-      adminLat: FAKE_ADMIN_LAT, adminLng: FAKE_ADMIN_LNG,
-      userLat: FAKE_USER_LAT, userLng: FAKE_USER_LNG,
-      distance: FAKE_DISTANCE, maxDistance: FAKE_MAX_DIST,
-      isInside: FAKE_DISTANCE <= FAKE_MAX_DIST,
-    });
-    setVerifiedClass({
-      id: "fake-class-id",
-      name: "Lớp Test Demo",
-      weeks_count: 10,
-      attendance_duration_minutes: 60,
-      attendance_started_at: new Date().toISOString(),
-      admin_latitude: FAKE_ADMIN_LAT,
-      admin_longitude: FAKE_ADMIN_LNG,
-      current_week: 1,
-      advanced_verification: false,
-    });
-    toast.success("🚧 Fake mode — map + modal đã mở!");
-    return;
-    // ── END FAKE ─────────────────────────────────────────────────────────────
-
     setIsVerifying(true);
     try {
       const { data, error } = await supabase
