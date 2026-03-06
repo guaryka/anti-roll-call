@@ -139,12 +139,20 @@
   }
 
   .modal-overlay {
-    @apply fixed inset-0 bg-foreground/50 backdrop-blur-sm z-50;
+    @apply fixed inset-0 bg-foreground/50 backdrop-blur-sm;
+    z-index: 1000;
   }
 
   .modal-content {
     @apply bg-card rounded-2xl shadow-2xl;
     box-shadow: var(--shadow-elevated);
+  }
+
+  /* Nhốt z-index của Leaflet trong stacking context riêng */
+  .map-container {
+    isolation: isolate;
+    position: relative;
+    z-index: 0;
   }
 
   .animate-fade-in {

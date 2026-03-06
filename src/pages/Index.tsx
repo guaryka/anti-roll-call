@@ -48,6 +48,34 @@ const Index = () => {
       return;
     }
 
+    // ── 🚧 FAKE / TEST MODE ── xóa block này khi đã test xong ──────────────
+    const FAKE_ADMIN_LAT = 10.7769;   // Hồ Chí Minh city center (lớp học)
+    const FAKE_ADMIN_LNG = 106.7009;
+    const FAKE_USER_LAT = 10.7780;   // cách ~150m (trong phạm vi)
+    const FAKE_USER_LNG = 106.7022;
+    const FAKE_DISTANCE = 150;
+    const FAKE_MAX_DIST = 300;
+    setMapData({
+      adminLat: FAKE_ADMIN_LAT, adminLng: FAKE_ADMIN_LNG,
+      userLat: FAKE_USER_LAT, userLng: FAKE_USER_LNG,
+      distance: FAKE_DISTANCE, maxDistance: FAKE_MAX_DIST,
+      isInside: FAKE_DISTANCE <= FAKE_MAX_DIST,
+    });
+    setVerifiedClass({
+      id: "fake-class-id",
+      name: "Lớp Test Demo",
+      weeks_count: 10,
+      attendance_duration_minutes: 60,
+      attendance_started_at: new Date().toISOString(),
+      admin_latitude: FAKE_ADMIN_LAT,
+      admin_longitude: FAKE_ADMIN_LNG,
+      current_week: 1,
+      advanced_verification: false,
+    });
+    toast.success("🚧 Fake mode — map + modal đã mở!");
+    return;
+    // ── END FAKE ─────────────────────────────────────────────────────────────
+
     setIsVerifying(true);
     try {
       const { data, error } = await supabase
@@ -163,7 +191,7 @@ const Index = () => {
       </header>
 
       {/* Main Content */}
-      <main className="flex flex-col items-center justify-center px-6 py-20">
+      <main className="flex flex-col items-center px-6 pt-16 pb-24">
         <div className="text-center mb-12 animate-fade-in">
           <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-4 text-balance">
             Điểm Danh Nhanh Chóng
@@ -217,54 +245,56 @@ const Index = () => {
               )}
             </Button>
           </div>
-        </div>
 
-        {/* GPS Map Result */}
-        {mapData && (
-          <div className={`w-full max-w-md mt-4 rounded-2xl overflow-hidden shadow-lg border animate-slide-up ${mapData.isInside ? "border-green-500/40" : "border-red-500/40"
-            }`}>
-            {/* Status bar */}
-            <div className={`px-4 py-3 flex items-center justify-between ${mapData.isInside
+          {/* GPS Map Result — nằm trong card, bên dưới nút */}
+          {mapData && (
+            <div className={`mt-6 -mx-8 -mb-8 rounded-b-2xl overflow-hidden border-t animate-slide-up ${mapData.isInside ? "border-green-500/40" : "border-red-500/40"
+              }`}>
+              {/* Status bar */}
+              <div className={`px-4 py-3 flex items-center justify-between ${mapData.isInside
                 ? "bg-green-500/15 text-green-600"
                 : "bg-red-500/15 text-red-600"
-              }`}>
-              <div className="flex items-center gap-2 font-semibold text-sm">
-                <MapPin className="w-4 h-4" />
-                {mapData.isInside ? "Trong phạm vi cho phép" : "Ngoài phạm vi cho phép"}
+                }`}>
+                <div className="flex items-center gap-2 font-semibold text-sm">
+                  <MapPin className="w-4 h-4" />
+                  {mapData.isInside ? "Trong phạm vi cho phép" : "Ngoài phạm vi cho phép"}
+                </div>
+                <span className="text-xs font-mono bg-white/50 px-2 py-0.5 rounded-full">
+                  {Math.round(mapData.distance)}m / {mapData.maxDistance}m
+                </span>
               </div>
-              <span className="text-xs font-mono bg-white/50 px-2 py-0.5 rounded-full">
-                {Math.round(mapData.distance)}m / {mapData.maxDistance}m
-              </span>
-            </div>
 
-            {/* Map */}
-            <Suspense fallback={
-              <div className="h-[280px] flex items-center justify-center bg-muted">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              {/* Map — bọc map-container để nhốt z-index của Leaflet */}
+              <div className="map-container">
+                <Suspense fallback={
+                  <div className="h-[260px] flex items-center justify-center bg-muted">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  </div>
+                }>
+                  <LocationMap
+                    adminLat={mapData.adminLat}
+                    adminLng={mapData.adminLng}
+                    userLat={mapData.userLat}
+                    userLng={mapData.userLng}
+                    distance={mapData.distance}
+                    maxDistance={mapData.maxDistance}
+                  />
+                </Suspense>
               </div>
-            }>
-              <LocationMap
-                adminLat={mapData.adminLat}
-                adminLng={mapData.adminLng}
-                userLat={mapData.userLat}
-                userLng={mapData.userLng}
-                distance={mapData.distance}
-                maxDistance={mapData.maxDistance}
-              />
-            </Suspense>
 
-            {/* Legend */}
-            <div className="px-4 py-2 bg-background/80 flex items-center gap-4 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1"><span className="text-base">🏫</span> Lớp học</span>
-              <span className="flex items-center gap-1"><span className="text-base">📍</span> Vị trí của bạn</span>
-              <span className="flex items-center gap-1">
-                <span className={`w-3 h-3 rounded-full border-2 ${mapData.isInside ? "border-green-500" : "border-red-500"
-                  }`} />
-                Bán kính {mapData.maxDistance}m
-              </span>
+              {/* Legend */}
+              <div className="px-4 py-2 bg-background/80 flex items-center gap-4 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1"><span className="text-base">🏫</span> Lớp học</span>
+                <span className="flex items-center gap-1"><span className="text-base">📍</span> Vị trí của bạn</span>
+                <span className="flex items-center gap-1">
+                  <span className={`w-3 h-3 rounded-full border-2 ${mapData.isInside ? "border-green-500" : "border-red-500"
+                    }`} />
+                  Bán kính {mapData.maxDistance}m
+                </span>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </main>
 
       {/* Login Modal */}
